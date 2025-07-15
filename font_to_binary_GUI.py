@@ -154,11 +154,12 @@ class FontToBinApp:
     def create_string_tab(self, parent):
         """文字列変換タブのUIを作成する"""
         # --- スクロール可能な領域を作成 ---
-        main_canvas = tk.Canvas(parent)
+        main_canvas = tk.Canvas(parent, borderwidth=0, highlightthickness=0)
         v_scrollbar = ttk.Scrollbar(
             parent, orient="vertical", command=main_canvas.yview)
         scrollable_frame = ttk.Frame(main_canvas)
 
+        # スクロール領域をフレームのサイズに合わせる
         scrollable_frame.bind(
             "<Configure>",
             lambda e: main_canvas.configure(
@@ -166,7 +167,15 @@ class FontToBinApp:
             )
         )
 
-        main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        window_id = main_canvas.create_window(
+            (0, 0), window=scrollable_frame, anchor="nw")
+
+        # キャンバスのサイズ変更に合わせてフレームの幅を調整する
+        def on_canvas_configure(event):
+            main_canvas.itemconfig(window_id, width=event.width)
+
+        main_canvas.bind("<Configure>", on_canvas_configure)
+
         main_canvas.configure(yscrollcommand=v_scrollbar.set)
 
         main_canvas.pack(side="left", fill="both", expand=True)
@@ -174,6 +183,7 @@ class FontToBinApp:
 
         # --- これ以降のウィジェットは scrollable_frame を親にする ---
         container = scrollable_frame
+        container.grid_columnconfigure(0, weight=1)  # コンテナ内の列も広がるように設定
 
         # --- 変数の定義 ---
         self.string_to_convert = tk.StringVar(value="ABC")
@@ -181,7 +191,7 @@ class FontToBinApp:
 
         # --- GUIウィジェットの作成と配置 ---
         input_frame = tk.Frame(container, padx=10, pady=10)
-        input_frame.pack(fill="x")
+        input_frame.pack(fill="x", expand=True)
 
         tk.Label(input_frame, text="変換する文字列:").grid(
             row=0, column=0, sticky="w", pady=2)
@@ -196,7 +206,7 @@ class FontToBinApp:
         frame_16.pack(fill="x", expand=True, padx=10, pady=5)
 
         preview_frame_16 = tk.Frame(frame_16)
-        preview_frame_16.pack(fill="x", pady=5)
+        preview_frame_16.pack(fill="x", expand=True, pady=5)
         self.str_preview_canvas_16 = tk.Canvas(
             preview_frame_16, height=160, bg="white", relief="sunken", borderwidth=1)
         x_scrollbar_16 = tk.Scrollbar(
@@ -218,7 +228,7 @@ class FontToBinApp:
         frame_8.pack(fill="x", expand=True, padx=10, pady=5)
 
         preview_frame_8 = tk.Frame(frame_8)
-        preview_frame_8.pack(fill="x", pady=5)
+        preview_frame_8.pack(fill="x", expand=True, pady=5)
         self.str_preview_canvas_8 = tk.Canvas(
             preview_frame_8, height=160, bg="white", relief="sunken", borderwidth=1)
         x_scrollbar_8 = tk.Scrollbar(
@@ -236,7 +246,25 @@ class FontToBinApp:
 
         self.root.after(100, self.update_string_results)
 
+        # --- マウスホイールでのスクロールを有効にする ---
+        self._bind_mousewheel_recursively(scrollable_frame, main_canvas)
+        main_canvas.bind("<MouseWheel>", lambda e,
+                         c=main_canvas: self._on_mousewheel(e, c))
+
     # --- イベントハンドラ ---
+
+    def _on_mousewheel(self, event, canvas):
+        """マウスホイールイベントを処理してキャンバスをスクロールする"""
+        # macOSでの二本指スクロールに対応
+        canvas.yview_scroll(-1 * event.delta, "units")
+
+    def _bind_mousewheel_recursively(self, widget, canvas):
+        """ウィジェットとその子孫にマウスホイールイベントをバインドする"""
+        widget.bind("<MouseWheel>", lambda e,
+                    c=canvas: self._on_mousewheel(e, c))
+        for child in widget.winfo_children():
+            self._bind_mousewheel_recursively(child, canvas)
+
     def on_single_char_change(self, *args):
         self.update_single_char_results()
 
